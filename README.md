@@ -1,2 +1,4 @@
-# CS-Learning-Note
-Learning Note of CS Courses
+# CS-Learning-Notebook
+
+Learning Notebooks of CS Courses.
+
