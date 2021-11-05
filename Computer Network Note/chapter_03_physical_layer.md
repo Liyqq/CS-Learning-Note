@@ -550,7 +550,7 @@ $$
 
 >**接入端单元(Access  Termination Unit，ATU)：分为ATU-C和ATU-R两种。**
 >
->在ADSL技术中也称ADSL调制解调器(ADSL modem)。在端局系统中即为ATU-C，在用户端即为ATU-R，两者须成对使用。
+>在ADSL技术中也称**ADSL调制解调器(ADSL Modem)**。在端局系统中即为ATU-C，在用户端即为ATU-R，两者须成对使用。
 
 下图展示了以ADSL技术为例的DSL系统结构图。
 
