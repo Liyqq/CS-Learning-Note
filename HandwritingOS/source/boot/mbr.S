@@ -78,7 +78,7 @@ SECTION MBR vstart=0x7c00
 
     mov eax, LOADER_START_SECTOR_LBA_ADDR    ;起始扇区LBA地址
     mov bx, LOADER_BASE_MEM_ADDR             ;内核加载器加载到内存的基地址
-    mov cx, 1                                ;待读取的扇区数
+    mov cx, LOADER_CONSUMED_SECTOR_NUM       ;待读取的扇区数
     call rd_disk_m_16                        ;读取内核加载器到BX指定内存
 
     jmp LOADER_BASE_MEM_ADDR                 ;跳转到内核加载器部分开始执行

@@ -1,4 +1,7 @@
 ;------------------- loader和kernel -------------------;
+;内核加载器占用硬盘的扇区数
+LOADER_CONSUMED_SECTOR_NUM equ 4
+
 ;内核加载器的扇区LBA地址：2扇区
 LOADER_START_SECTOR_LBA_ADDR equ 0x02
 
