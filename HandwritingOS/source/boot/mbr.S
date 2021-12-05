@@ -81,7 +81,7 @@ SECTION MBR vstart=0x7c00
     mov cx, LOADER_CONSUMED_SECTOR_NUM       ;待读取的扇区数
     call rd_disk_m_16                        ;读取内核加载器到BX指定内存
 
-    jmp LOADER_BASE_MEM_ADDR                 ;跳转到内核加载器部分开始执行
+    jmp LOADER_BASE_MEM_ADDR + 0x300         ;跳转到内核加载器部分开始执行
 ;;;;;;;;;; 载入内核加载器结束 ;;;;;;;;;;
 
 
