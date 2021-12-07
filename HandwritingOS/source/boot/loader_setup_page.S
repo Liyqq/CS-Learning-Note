@@ -1,6 +1,6 @@
 ;内核加载器 Kernel Loader
 ;
-;实现从实模式到保护模式的三步走，并获取计算机内存
+;实现从实模式到保护模式的三步走，并获取计算机内存，打开分页机制
 ;---------------------------------------------------------------------------
 %include "boot.inc"
 section loader vstart=LOADER_BASE_MEM_ADDR
@@ -80,12 +80,11 @@ ARDS_number dw 0                ;记录ARDS结构体数量
 
 ;;;;;;;;;; GDT中3个描述符对应选择子 ;;;;;;;;;;
 
+;下行代码相当于(CODE_DESC + GDT_SIZE)/8 + SELECTOR_TI_GDT + SELECOTR_RPL_0
 SELECTOR_CODE   equ (0x0001 << 3) + SELECTOR_TI_GDT + SELECTOR_RPL_0
-;上行代码相当于(CODE_DESC + GDT_SIZE)/8 + SELECTOR_TI_GDT + SELECOTR_RPL_0
 SELECTOR_DATA   equ (0x0002 << 3) + SELECTOR_TI_GDT + SELECTOR_RPL_0
 SELECTOR_VIDEO  equ (0x0003 << 3) + SELECTOR_TI_GDT + SELECTOR_RPL_0
 ;;;;;;;;;; GDT中3个描述符对应选择子结束 ;;;;;;;;;;
-
 
 
 
@@ -237,6 +236,8 @@ loader_start:
 ;;;;;;;;;; 利用BOIS提供的0x15H号功能，获取内存容量结束 ;;;;;;;;;;
 
 
+
+
 ;----------------------- 三步进入保护模式 -----------------------;
 ;1.打开A20地址线
 ;2.在GDTR寄存器中加载GDT地址以及偏移量
@@ -281,8 +282,9 @@ loader_start:
 ;出错则挂起
 .error_halt:
     hlt
-    
 ;----------------------------  END  ------------------------------
+
+
 
 ;;;;;;;;;; 进入保护模式中打印"P"字符 ;;;;;;;;;;
 
@@ -297,10 +299,153 @@ p_mode_start:
 
     mov ax, SELECTOR_VIDEO
     mov gs, ax
-
-;向文本模式的显存中第80个字符位置（第二行首字符）写入字符P
+    ;向文本模式的显存中第80个字符位置（第二行首字符）写入字符P
     mov byte [gs:160], 'P'  
     mov byte [gs:161], 0x1f ;蓝底白字
 ;;;;;;;;;; 进入保护模式中打印"P"字符结束 ;;;;;;;;;;
 
-    jmp $                   ;程序悬停此处
+
+;----------------------- 三步开启分页机制 -----------------------;
+;1.创建页目录表及页表。
+;2.将页表地址写入控制寄存器CR3。 
+;3.寄存器CR0的PG位置1。
+;
+;--------------- 1.创建页目录表及页表 ---------------
+    call setup_page
+
+    ;要将描述符表地址及偏移量写入内存GDT_ptr，一会用新地址重新加载
+    ;在页表中会将内核放置到3GB以上的地址，因此也把GDT放在内核的地址空间
+    ;sgdt指令用于获取GDT(全局描述表)的虚拟地址。
+    sgdt [GDT_ptr]                          ;存储到原来的GDT_ptr的位置
+
+    ;修改显存段的段描述符的段基址，因为将来内核运行在3GB以上，打印功
+    ;能将来也是在内核中实现，不能让用户进程直接能控制显存。故显存段的
+    ;段基址也要改为3GB以上。0xc000_0000 ~ 0xffff_ffff是最高1GB
+    ;将gdt描述符中VIDEO段描述符中的段基址+0xc000_0000
+    mov ebx, [GDT_ptr + 2]                  ;GDT_ptr前2字节(16bits)是偏移量，
+                                            ;后4个字节是基址，此处得到GDT的基址
+
+    or dword [ebx + 0x18 + 4], 0xc0_000000  ;视频段是第4个段描述符，每个段描述符是
+                                            ;8字节，故0x18=24。
+                                            ;段描述符的高4字节的最高8位是段基址
+                                            ;的31~24位(8bit)
+
+    ;将gdt的基址加上0xc0000000使其成为内核所在的高地址
+    add dword [GDT_ptr + 2], 0xc0000000
+
+    ;将栈指针同样映射到内核地址，等同于LOADER_STACK_TOP_MEM_ADDR+0xc0000000
+    add esp, 0xc0000000    
+
+;--------------- 2.将页表地址写入控制寄存器CR3 ---------------
+    mov eax, PAGE_DIR_TABLE_BASE_ADDR
+    mov cr3, eax
+
+;--------------- 3.寄存器CR0的PG位置1 ---------------
+    mov eax, cr0
+    or eax, 0x8000_0000                     ;0x8=1000b
+    mov cr0, eax
+
+;----------------------- 三步开启分页机制结束 -----------------------;
+
+
+;在开启分页后，用gdt指令重新加载GDT新的地址
+    lgdt [GDT_ptr]                          ;重新加载
+
+;;;;;;;;;; 视频段段基址已经被更新,用Virtual Addr表示 ;;;;;;;;;;
+    mov byte [gs:320], 'V'     
+    mov byte [gs:322], 'i'     
+    mov byte [gs:324], 'r'     
+    mov byte [gs:326], 't'     
+    mov byte [gs:328], 'u'     
+    mov byte [gs:330], 'a'     
+    mov byte [gs:332], 'l'
+    mov byte [gs:334], ' '
+    mov byte [gs:336], 'A'
+    mov byte [gs:338], 'd'
+    mov byte [gs:340], 'd'
+    mov byte [gs:342], 'r'     
+;;;;;;;;;; 视频段段基址已经被更新,用Virtual Addr表示结束 ;;;;;;;;;;
+
+    jmp $                                   ;程序悬停此处
+
+
+
+;---------------------------- START ------------------------------
+;创建页目录及页表
+;
+setup_page:
+;;;;;;;;;; 将页目录占用的空间逐字节清0 ;;;;;;;;;;
+    mov ecx, 4096
+    mov esi, 0
+.clear_page_dir_table:
+    mov byte [PAGE_DIR_TABLE_BASE_ADDR + esi], 0
+    inc esi
+    loop .clear_page_dir_table
+;;;;;;;;;; 将页目录占用的空间逐字节清0结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 创建页目录项(PDE) ;;;;;;;;;;
+.create_pde:
+    mov eax, PAGE_DIR_TABLE_BASE_ADDR
+    add eax, 0x1000                            ;此时EAX为第一个页表的地址和属性
+                                                ;此处仅有地址，属性在之后赋予
+                                                ;EAX=0x100000+0x1000=0x101000
+                                                ;0x1000 = 4K = 4096
+
+    mov ebx, eax                                ;此处赋值EBX是为.create_pte做
+                                                ;准备，EBX为1024个页表的基址
+
+;以下代码将页目录项0和768=0xc00byte/4byte都作为第一个页表的地址目录项，
+;一个页表可以表示1024*4KB=4MB内存，4M = 0x40_0000，
+;这样物理地址0xc00_0000~0xc03f_ffff的4MB和物理地址0x00_0000~0x003f_ffff
+;的4MB都指向相同的页表，这将为地址映射为内核地址做准备
+    or eax, PAGE_US_U | PAGE_RW_W | PAGE_P      ;页目录项的属性RW和P位为1，US为1
+                                                ;表示用户属性，所有特权级别都可访问
+
+    mov [PAGE_DIR_TABLE_BASE_ADDR + 0x0], eax   ;第1个目录项，在页目录表中的第1个目
+                                                ;录项写入第一个页表的位置(0x101000)
+                                                ;及属性(0x7=0000_0000_0111b)
+                                                
+    mov [PAGE_DIR_TABLE_BASE_ADDR + 0xc00], eax ;一个页表项占用4字节，0xc00表示第
+                                                ;768个页表占用的目录项，0xc00以上的
+                                                ;目录项用于内核空间，也就是页表的
+                                                ;0xc000_0000~0xffff_ffff共计1G
+                                                ;属于内核，
+                                                ;0x0~0xbfff_ffff共计3G属于用户进程。
+    
+    sub eax, 0x1000                             ;EAX=0x00100_007，属性位之后被覆盖
+    mov [PAGE_DIR_TABLE_BASE_ADDR + 4092], eax  ;最后一个目录项指向页目录表自己的地址
+;;;;;;;;;; 创建页目录项(PDE)结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 创建页表项(PTE) ;;;;;;;;;;
+    mov ecx, 256                                ;1M低端内存 / 每页大小4K = 256页
+    mov esi, 0
+    mov edx, PAGE_US_U | PAGE_RW_W | PAGE_P     ;属性位0x007，US=1,RW=1,P=1
+.create_pte:
+    mov [ebx + esi*4], edx                      ;之前赋值EBX=0x101000，
+                                                ;即第一个页表地址
+
+    add edx, 4096                               ;4096=4K=0x1000
+    inc esi
+    loop .create_pte
+;;;;;;;;;; 创建页表项(PTE)结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 创建内核其它页表的PDE ;;;;;;;;;; 
+    mov eax, PAGE_DIR_TABLE_BASE_ADDR
+    add eax, 0x2000                             ;此时EAX为第二个页表的位置
+    or eax, PAGE_US_U | PAGE_RW_W | PAGE_P      ;此页目录项的属性位US=1,RW=1,P=1
+
+    mov ebx, PAGE_DIR_TABLE_BASE_ADDR
+    mov ecx, 254                                ;范围为第769~1022的所有目录项数量
+    mov esi, 769
+.create_kernel_pde:
+    mov [ebx + esi*4], eax
+    inc esi
+    add eax, 0x1000                             ;0x1000=4k，一个页表大小为4KB
+    loop .create_kernel_pde 
+;;;;;;;;;; 创建内核其它页表的PDE结束 ;;;;;;;;;;
+
+    ret
+;----------------------------  END  ------------------------------
