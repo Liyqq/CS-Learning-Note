@@ -122,7 +122,7 @@ loader_start:
     xor ebx, ebx                    ;第一次调用时EBX需要传入0
     mov edx, 0x534d4150             ;EDX赋值一次后，在循环体中不会改变
     mov di, ARDS_buffer             ;ARDS的缓冲区
-;循环获取美国ARDS
+;循环获取每个ARDS
 .e820_mem_get_loop:                 
     mov eax, 0x0000e820             ;执行int 0x15后，EAX值变为0x534d4150，
                                     ;所以每次执行int前都要更新为子功能号。

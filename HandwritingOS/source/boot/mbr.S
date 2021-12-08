@@ -163,7 +163,7 @@ rd_disk_m_16:
         ;LBA地址14 ~ 27位写入端口为device(0x01f6)低4位
         shr eax, cl
         and al, 0x0f        ;取AL的低4位写入device端口低4位，
-        or al, 0xe0         ;设置device高4位为0x0e(1110)，表示LBA模式
+        or al, 0xe0         ;设置device高4位为0xe0(1110)，表示LBA模式
         mov dx, 0x01f6
         out dx, al
 
@@ -192,11 +192,11 @@ rd_disk_m_16:
 
         ;读取数据
         mov dx, 0x01f0      
-    .go_on_ready:
+    .go_on_read:
         in ax, dx
         mov [bx], ax        ;读入内存
         add bx, 2
-        loop .go_on_ready
+        loop .go_on_read
 
         ret
 ;---------------------- END ------------------------

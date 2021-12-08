@@ -1,6 +1,7 @@
 ;内核加载器 Kernel Loader
 ;
-;实现从实模式到保护模式的三步走，并获取计算机内存，打开分页机制
+;1.实现从实模式到保护模式的三步走，并获取计算机内存，打开分页机制
+;2.加载内核
 ;---------------------------------------------------------------------------
 %include "boot.inc"
 section loader vstart=LOADER_BASE_MEM_ADDR
@@ -366,9 +367,42 @@ p_mode_start:
     mov byte [gs:342], 'r'     
 ;;;;;;;;;; 视频段段基址已经被更新,用Virtual Addr表示结束 ;;;;;;;;;;
 
-    jmp $                                   ;程序悬停此处
 
+;----------------------- 加载内核 -----------------------;
+    mov eax, KERNEL_START_SECTOR_LAB_ADDR       ;kerbel.bin内核文件所在扇区号
+    mov ebx, KERNEL_BIN_BASE_MEM_ADDR           ;从磁盘读出后，写入到EBX指定的地址
+    mov ecx, KERNEL_CONSUMED_SECTOR_NUM         ;读入的扇区数
 
+    call rd_disk_m_32                           ;读入内核文件
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;  此时不刷新流水线也没问题  ;;;;;;;;;;;;;;;;;;;;;;;;
+;由于一直处在32位下,原则上不需要强制刷新,经过实际测试没有以下这两句也没问题。
+;但以防万一，还是加上，免得将来出来莫句奇妙的问题.
+    jmp SELECTOR_CODE:enter_kernel              ;强制刷新流水线，更新gdt
+;----------------------- 加载内核结束 -----------------------;
+enter_kernel:
+    mov byte [gs:640], 'K'
+    mov byte [gs:642], 'e'
+    mov byte [gs:644], 'r'
+    mov byte [gs:646], 'n'
+    mov byte [gs:648], 'e'
+    mov byte [gs:650], 'l'
+    mov byte [gs:652], ' '
+    mov byte [gs:654], 'L'
+    mov byte [gs:656], 'o'
+    mov byte [gs:658], 'a'
+    mov byte [gs:660], 'd'
+    mov byte [gs:662], 'i'
+    mov byte [gs:664], 'n'
+    mov byte [gs:666], 'g'
+    mov byte [gs:668], '.'
+    mov byte [gs:670], '.'
+    mov byte [gs:672], '.'
+
+    call kernel_init
+
+    mov esp, KERNEL_STACK_TOP_MEM_ADDR
+    jmp KERNEL_ENTRY_POINT      ;进入内核 
 
 ;---------------------------- START ------------------------------
 ;创建页目录及页表
@@ -446,6 +480,267 @@ setup_page:
     add eax, 0x1000                             ;0x1000=4k，一个页表大小为4KB
     loop .create_kernel_pde 
 ;;;;;;;;;; 创建内核其它页表的PDE结束 ;;;;;;;;;;
+
+    ret
+;----------------------------  END  ------------------------------
+
+
+
+
+;---------------------------- START ------------------------------
+;功能：在32位模式下读取硬盘n个扇区
+;输入：
+;   EAX=LBA扇区号
+;   BX=从硬盘读取的数据写入内存的开始地址
+;   CX=从硬盘读取的扇区数
+;输出：
+;   BX指向内存地址
+;
+rd_disk_m_32:
+;备份操作:
+    mov esi, eax        ;备份EAX，因为in/out指令会用到AL
+    mov di, cx          ;备份CX，因为读取数据，计算读取次数时需要用到CX中扇区数
+
+;读写硬盘:   
+;第1步:设置要读取硬盘扇区数
+    mov dx, 0x01f2      ;Sector count端口
+    mov al, cl          ;传入端口的数据
+    out dx, al          ;读取扇区数
+
+    mov eax, esi        ;还原EAX，之后操作都需用到EAX传入的值
+
+;第2步:将LBA地址送入LAB端口(0x01f3 ~ 0x1f6)
+    ;LBA地址0 ~ 7位写入端口为0x01f3
+    mov dx, 0x01f3
+    out dx, al
+
+    mov cl, 8           ;LBA寄存器为8位寄存器
+    ;LBA地址8 ~ 15位写入端口为0x01f4
+    shr eax, cl
+    mov dx, 0x01f4
+    out dx, al
+
+    ;LBA地址16 ~ 23位写入端口为0x01f5
+    shr eax, cl
+    mov dx, 0x01f5
+    out dx, al
+
+    ;LBA地址14 ~ 27位写入端口为device(0x01f6)低4位
+    shr eax, cl
+    and al, 0x0f       ;取AL的低4位写入device端口低4位，
+    or al, 0xe0        ;设置device高4位为0xe0(1110)，表示LBA模式
+    mov dx, 0x01f6
+    out dx, al
+
+;第3步:向Command端口(0x01f7)写入读命令(0x20)
+    mov dx, 0x01f7
+    mov al, 0x20
+    out dx, al
+
+;第4步:检查硬盘状态
+    ;Status端口(0x01f7)读时表示读取硬盘状态，写时表示写入命令
+.not_ready:
+    nop
+    in al, dx
+    and al, 0x88        ;第4位为1表示硬盘控制器已准备好数据传输
+                        ;第7位为1表示硬盘忙
+                        ;0x88(1000 1000)
+    cmp al, 0x08        ;0x08(0000 1000)
+    jnz .not_ready      ;若未准备好，继续等待
+
+;第5步:从Data端口(0x01f0)读取数据，一次读取1个字(2 bytes)
+    ;计算读取次数
+    mov ax, di          ;DI寄存器中备份有传入的CX中的扇区数
+    mov dx, 256         ;一次读入2字节，一个扇区512字节，则一个扇区需要读256次
+    mul dx              ;总共需要读取的次数=ax(di) * 256
+
+    mov cx, ax
+    mov dx, 0x01f0
+.go_on_read:
+    ;由于在实模式下偏移地址为16位，所以用BX只会访问到0~FFFFh的偏移。
+    ;loader的栈指针为0x900，BX为指向的数据输出缓冲区，且为16位，
+    ;超过0xffff后，BX部分会从0开始，所以当要读取的扇区数过大，待写入
+    ;的地址超过BX的范围时，从硬盘上读出的数据会把0x0000~0xffff的覆盖，
+    ;造成栈被破坏，造成ret返回时，返回地址被破坏了，不是之前正确的地址，
+    ;故程序出会错，不知道会跳到哪里去。
+    ;
+    ;所以改为EBX代替BX指向缓冲区，这样生成的机器码前面会有0x66和0x67
+    ;来反转：
+    ;   0X66用于反转默认的操作数大小。
+    ;   0X67用于反转默认的寻址方式。
+    ;cpu处于16位模式时，会理所当然的认为操作数和寻址都是16位，处于32位
+    ;模式时，也会认为要执行的指令是32位。当我们在其中任意模式下用了另外模
+    ;式的寻址方式或操作数大小(姑且认为16位模式用16位字节操作数，32位模式
+    ;下用32字节的操作数)时，编译器会在指令前帮我们加上0x66或0x67，临时
+    ;改变当前cpu模式到另外的模式下。
+    ;
+    ;运行在16位模式，遇到0X66时，操作数大小变为32位。
+    ;运行在32位模式，遇到0X66时，操作数大小变为16位。
+    ;运行在16位模式，遇到0X67时，寻址方式变为32位寻址。
+    ;运行在32位模式，遇到0X67时，寻址方式变为16位寻址。
+    in ax, dx
+    mov [ebx], ax
+    add ebx, 2
+    loop .go_on_read
+
+    ret
+;----------------------------  END  ------------------------------
+
+
+
+
+;---------------------------- START ------------------------------
+;将内核文件(kernel.bin)中的程序段(segment)拷贝到编译时
+;指定的内存基址(KERNEL_BIN_BASE_MEM_ADDR=0x70000)中
+;
+;ELF指的是Executable and Linkable Format，可执行链接格式。
+;最初是由UNIX系统实验室(USL)作为应用程序二进制接口(ABI)而开发
+;和发行的。工具接口标准委员会(TIS)选择了它作为IA32体系结构上不
+;同操作系统之间的可移植二进制文件格式，于是它就发展成为了事实上
+;的二进制文件格式标准。其格式定义如下所示
+;
+;#define EI_NIDENT (16)
+;
+;typedef struct
+;{
+;    unsigned char e_ident[EI_NIDENT]; /* Magic number and other info       */
+;    Elf32_Half    e_type;             /* Object file type                  */
+;    Elf32_Half    e_machine;          /* Architecture                      */
+;    Elf32_Word    e_version;          /* Object file version               */
+;    Elf32_Addr    e_entry;            /* Entry point virtual address       */
+;    Elf32_Off     e_phoff;            /* Program header table file offset  */
+;    Elf32_Off     e_shoff;            /* Section header table file offset  */
+;    Elf32_Word    e_flags;            /* Processor-specific flags          */
+;    Elf32_Half    e_ehsize;           /* ELF header size in bytes          */
+;    Elf32_Half    e_phentsize;        /* Program header table entry size   */
+;    Elf32_Half    e_phnum;            /* Program header table entry count  */
+;    Elf32_Half    e_shentsize;        /* Section header table entry size   */
+;    Elf32_Half    e_shnum;            /* Section header table entry count  */
+;    Elf32_Half    e_shstrndx;         /* Section header string table index */
+;} Elf32_Ehdr;
+;
+;------------+---------+-----+-------------------
+; 数据类型名称 | 字节大小 | 对齐 |        意义
+;------------+---------+-----+-------------------
+;Elf32_Half  |    2    |  2  | 无符号中等大小的整数  
+;------------+---------+-----+-------------------
+;Elf32_Word  |    4    |  4  | 无符号大整数
+;------------+---------+-----+-------------------
+;Elf32_Addr  |    4    |  4  | 无符号程序运行地址
+;------------+---------+-----+-------------------
+;Elf32_Off   |    4    |  4  | 无符号的文件偏移量
+;------------+---------+-----+-------------------
+;
+;e_ident：是16字节大小的数组，用来表示elf字符等信息，
+;   开头的4个字节是固定不变的，是elf文件的魔数，它们分别
+;   是0x7f，以及字符串ELF的ASCII码：0x45, 0x4c, 0x46。
+;   e_ident[4]：用来标识elf文件的类型
+;       值为0表示该文件是不可识别类型
+;       值为1表示该文件是32位elf格式的文件
+;       值为2表示该文件是64位elf格式的文件
+;   e_ident[5]：用来指定编码格式，其实就是指定大端字节序还是小端字节序
+;       值为0表示非法编码格式
+;       值为1表示小端字节序，即LSB(最低有效字节)
+;       值为2表示大端字节序，即MSB(最高有效字节)
+;   e_ident[6]：ELF头的版本信息，默认为1
+;       值为0表示非法版本
+;       值为1表示当前版本
+;   e_ident[7~15]：暂且不用，保留，均初始化为0
+kernel_init:
+    xor eax, eax                                
+    xor ebx, ebx                            ;EBX中记录程序头表地址
+    xor ecx, ecx                            ;CX中记录程序头表中的
+                                            ;program header的数量
+    xor edx, edx                            ;DX中记录program header
+                                            ;尺寸，即e_phentsize
+
+    ;偏移文件开始42字节处的属性是e_phentsize，表示program header的尺寸
+    mov dx, [KERNEL_BIN_BASE_MEM_ADDR + 42]     
+    ;偏移文件开始28字节处的属性是e_phoff，表示第一个program header在文件中偏移量
+    mov ebx, [KERNEL_BIN_BASE_MEM_ADDR + 28]    
+    add ebx, KERNEL_BIN_BASE_MEM_ADDR       ;加上内核基址即为program header的基址
+
+    ;偏移文件开始44字节处的属性是e_phnum，表示文件中program header的数量
+    mov cx, [KERNEL_BIN_BASE_MEM_ADDR + 44]
+
+.each_segment:
+    ;p_type在程序头开始处，偏移量为0。若p_type等于PT_NULL，说明此程序头未使用。
+    cmp byte [ebx + 0], PT_NULL
+    je .pt_null
+
+    ;为mem_cpy函数压入参数，参数从右往左依次压入，函数原型类似于mem_cpy(dst, src, size)
+    ;压入size
+    push dword [ebx + 16]                   ;程序头偏移16个字节是程序段大小p_filesz
+
+    ;压入src
+    mov eax, [ebx + 4]                      ;程序头偏移4个字节是程序头在elf文件中偏移
+                                            ;量p_offset.
+    add eax, KERNEL_BIN_BASE_MEM_ADDR       ;加上elf基址得到其程序头基址(存储位置)
+    push eax
+
+    ;压入dst
+    push dword [ebx + 8]                    ;程序头偏移8个字节是程序段在内存中的起始
+                                            ;虚拟地址p_vaddr(运行时位置)
+
+    call mem_cpy
+    add esp, 4*3                            ;清理压入栈中的三个参数
+
+.pt_null:
+    ;EDX存储程序头尺寸，即e_phentsize，EBX加上此值后指向下一个程序头
+    add ebx, edx
+    loop .each_segment
+
+    ret
+;----------------------------  END  ------------------------------
+
+
+
+
+;---------------------------- START ------------------------------
+;功能：逐个字节拷贝内存
+;输入：栈中压入的三个参数(dst, src, size)，从右往左压入，即栈顶为dst
+;   dst：目的地址
+;   src：源地址
+;   size：拷贝内存大小，单位为字节
+;输出：
+;   无
+;
+mem_cpy:
+;cld相对应的指令是std，二者均是用来操作方向标志位DF(Direction Flag)。
+;cld使DF复位，即DF=0
+;std使DF置位，即DF=1
+;这两个指令用于串操作指令中。通过执行cld或std指令可以控制方向标志DF，
+;决定内存地址是增大（DF=0，向高地址增加）还是减小（DF=1，向地地址减小）。
+;
+;串操作指令寻址方式有点特殊：
+;    源操作数和目的操作数分别使用寄存器(e)si和(e)di进行间接寻址。
+;    每执行一次串操作，源指针(e)si和目的指针(e)di将自动进行修改：±1、±2、±4，
+;    其对应的分别是字节操作、字操作和双字操作。
+;    注：intel文档使用MOVSD传送双字，而GNU文档使用MOVSL传送双字。
+;
+;例如：
+;    movsb：字节串传送指令，按字节传送数据。 通过SI和DI这两个寄存器
+;           控制字符串的源地址和目标地址。
+;    DF=0, SI=SI + 1, DI=DI + 1；
+;    DF=1, SI=SI - 1, DI=DI - 1；
+    cld                     ;置DF=0，向高地址增加
+
+    ;保存上下文
+    push ebp
+    mov ebp, esp
+    push ecx                ;rep指令使用到了ECX
+
+
+    mov edi, [ebp + 8]      ;dst
+    mov esi, [ebp + 12]     ;src
+    mov ecx, [ebp + 16]     ;size
+
+    ;rep指令：重复执行该指令后面的汇编指令，执行次数由寄存器ECX控制，不可单独使用。
+    rep movsb               
+
+    ;恢复上下文
+    pop ecx
+    pop ebp
 
     ret
 ;----------------------------  END  ------------------------------
