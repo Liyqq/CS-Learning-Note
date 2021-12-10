@@ -12,7 +12,7 @@ section .data
 section .text
 
 global put_char
-
+global put_str
 
 
 ;把每一个寄存器分组视为一个寄存器数组，提供一个寄存器用于指定数组下标，
@@ -269,6 +269,44 @@ put_char:
 
 .put_char_done:
     popad
+    ret
+;----------------------------  END  ------------------------------
+
+
+
+
+;---------------------------- START ------------------------------
+;功能：借助put_char函数打印以ASCII空字符('\0')结尾的字符串
+;输入：(char*)
+;   char*：需要向屏幕打印的字符串的内存首地址
+;输出：
+;   无
+;
+put_str:
+    ;仅备份用到的EBX和ECX寄存器
+    ;EBX中存储字符串首地址
+    ;ECX中存储字符串中作为put_char参数的单个字符    
+    push ebx            
+    push ecx            
+    xor ecx, ecx
+    mov ebx, [esp + 4*3]     ;从栈中获取待打印字符串首地址
+
+.go_on:
+    mov cl, [ebx]           ;获取单个待打印字符
+    cmp cl, 0               ;判断是否为C语言字符串结束符
+    jz .put_str_done        ;为结束符则跳转到函数结束
+
+    ;调用put_char打印单个字符
+    push ecx        
+    call put_char
+    add esp, 4
+
+    inc ebx                 ;EBX指向下一个待打印字符地址
+    jmp .go_on
+
+.put_str_done:
+    pop ecx
+    pop ebx
     ret
 
 ;----------------------------  END  ------------------------------

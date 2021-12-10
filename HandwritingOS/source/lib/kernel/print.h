@@ -5,4 +5,6 @@
 
 void put_char(uint8_t char_ascii);
 
+void put_str(char* str_ascii);
+
 #endif // __LIB_KERNEL_PRINT_H
