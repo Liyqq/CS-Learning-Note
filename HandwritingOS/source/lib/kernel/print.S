@@ -1,18 +1,25 @@
 ;实现打印函数
 ;
 ;1.实现打印单个字符的函数put_char
+;2.实现打印以ASCII结束符('\0')结束的字符串函数put_str
+;3.实现打印32位无符号整数为16进制数的函数put_int
 ;
 ;---------------------------------------------------------------------------
 ;
 %include "print.inc"
 
 section .data
+;定义8字节缓冲区用于整数到字符的转换，实际上用于存储转换后的字符
+put_int_buffer  dq   0              
+
+
 
 [bits 32]
 section .text
 
 global put_char
 global put_str
+global put_int
 
 
 ;把每一个寄存器分组视为一个寄存器数组，提供一个寄存器用于指定数组下标，
@@ -308,5 +315,104 @@ put_str:
     pop ecx
     pop ebx
     ret
+;----------------------------  END  ------------------------------
 
+
+
+
+;---------------------------- START ------------------------------
+;功能：借助put_char函数打印32位无符号整数，以16进制打印，但不会打印前缀0x
+;输入：(num)
+;   num：需要向屏幕打印的32位无符号整数
+;输出：
+;   无
+;
+put_int:
+;;;;;;;;;; 备份寄存器现场，配置缓冲区参数 ;;;;;;;;;;
+    pushad
+    
+    mov ebp, esp        
+    mov eax, [ebp + 4*9]            ;call返回地址4字节+pushad的8个4字节
+    mov edx, eax                    ;EDX中用于获取低4位，EAX作为备份，配合使用
+
+    mov edi, 7                      ;EDI指向put_int_buffer指针(从右往左)
+    mov ecx, 8                      ;32位整数共有32/4=8个的16进制数
+    mov ebx, put_int_buffer         ;EBX中存储put_int_buffer的基地址
+;;;;;;;;;; 备份寄存器现场，配置缓冲区参数结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 将32位整数按16进制从低到高逐个处理流程 ;;;;;;;;;;
+;将32位数字按照16进制的形式从低位到高位逐个处理，每4位二
+;进制是16进制数字的1位，共处理8个16进制数字
+.16based_4bits:
+    and edx, 0x0000_000f            ;and与操作后，edx只有低4位有效，即16进制一位
+    
+    cmp edx, 9                      ;若是0~9则加上'0'，10~15需要另行处理成对应A~F字符
+    jg .is_A2F
+
+    add edx, '0'                    ;ASCII码是8位大小，add求和操作后，EDX低8位有效。
+    jmp .store_single_num           ;存储此位16进制数
+
+.is_A2F:
+    ;10~15减去10所得到的差，再加上'A'的ASCII码，
+    ;便是A~F对应的ascii码
+    sub edx, 10 
+    add edx, 'A'
+
+;将每一位数字转换成对应的字符后，高位字符放在低地址，低位字符
+;放在高地址的顺序，存储到缓冲区put_int_buffer中。
+.store_single_num:
+    mov [ebx + edi], dl
+    
+    dec edi                         ;EDI指向下一个缓冲区位置
+    shr eax, 4                      ;取下个一16位数
+    mov edx, eax                    ;更新到EDX中
+
+    loop .16based_4bits
+;;;;;;;;;; 将32位整数按16进制从低到高逐个处理流程结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 去除转换后16进制数形式前的0流程 ;;;;;;;;;;
+;put_int_buffer中已全是字符，打印之前,把高位连续的字符
+;去掉。比如，把字符000123变成123。
+    inc edi                         ;此时EDI值为-1(0xffffffff)，加1使其为0
+
+.skip_prefix_0:
+    cmp edi, 8                      ;若全为0，则跳转到全为0处理
+    je .all_0
+
+;找出连续的0字符, EDI做为非0的最高位字符的偏移。
+.go_on_skip:
+    mov cl, [put_int_buffer + edi]  ;获取缓冲区中16进制字符
+    inc edi                         ;EDI指向下一个16进制字符
+
+    cmp cl, '0'
+    je .skip_prefix_0               ;继续判断下位16机制数是否为0
+
+    dec edi                         ;若当前字符不为0，则EDI应恢复到指向当前字符
+    jmp .put_each_num               ;打印最终的16进制数
+
+.all_0:
+    mov cl, '0'
+;;;;;;;;;; 去除转换后16进制数形式前的0流程结束 ;;;;;;;;;;
+
+
+;;;;;;;;;; 从左往右逐个打印转换后16进制数 ;;;;;;;;;;
+.put_each_num:
+    ;调用put_char从左往右打印单个16进制数
+    push ecx
+    call put_char
+    add esp, 4
+
+    inc edi                         ;EDI指向下一个16进制数
+    mov cl, [put_int_buffer + edi]  ;CL中保存下一个16进制数
+    
+    ;未打印完数字，即EDI小于8，继续打印
+    cmp edi, 8                      
+    jl .put_each_num
+;;;;;;;;;; 从左往右逐个打印转换后16进制数结束 ;;;;;;;;;;
+
+.put_int_done:
+    popad
+    ret
 ;----------------------------  END  ------------------------------

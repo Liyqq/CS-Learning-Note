@@ -7,4 +7,6 @@ void put_char(uint8_t char_ascii);
 
 void put_str(char* str_ascii);
 
+void put_int(uint32_t num);        // 以16进制打印
+
 #endif // __LIB_KERNEL_PRINT_H

@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-10 17:12:14
+* @Last Modified time: 2021-12-10 19:34:23
 */
 
 #include "print.h"
@@ -27,7 +27,35 @@ int main(void)
     */
     
     /* put_str打印函数测试 */ 
+    /*
     put_str("I am the Kernel.\n");
+    */
+   
+    /* put_int打印函数测试 */
+    /*
+    put_int(0);
+    put_char('\n');
+    put_int(9);
+    put_char('\n');
+    put_int(14);
+    put_char('\n');
+    put_int(0x12345678);
+    put_char('\n');
+    put_int(0x00e005af);
+    put_char('\n');
+    put_int(0x00000000);
+    */
+   
+    /* put_char、put_str、put_int打印函数总测试 */
+    put_char('C');
+    put_char('h');
+    put_char('a');
+    put_char('r');
+    put_char('\n');
+
+    put_str("I am the Kernel.\n");
+
+    put_int(0x00e015af);
 
     while (1);
     return 0;
