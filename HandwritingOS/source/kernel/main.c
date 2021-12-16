@@ -2,14 +2,35 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-10 19:34:23
+* @Last Modified time: 2021-12-17 01:38:45
 */
 
 #include "print.h"
+#include "init.h"
 
+
+
+/* 测试用例函数声明 */
+void print_test(void);
+void intr_test(void);
 
 // int _start(void) // Linux链接默认程序入口函数名
 int main(void)
+{
+    // print_test();    
+
+    intr_test();
+
+
+    while (1);
+    return 0;
+}
+
+
+
+
+
+void print_test(void)
 {
     /* put_char打印函数测试 */ 
     /*
@@ -56,7 +77,14 @@ int main(void)
     put_str("I am the Kernel.\n");
 
     put_int(0x00e015af);
+}
 
-    while (1);
-    return 0;
+
+
+void intr_test(void)
+{
+    put_str("I am the Kernel.\n");
+    init_all();
+
+    asm volatile ("sti"); // 演示中断处理，临时开中断
 }
