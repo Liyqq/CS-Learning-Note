@@ -24,15 +24,22 @@ gcc -m32 -I ./lib/kernel/ -I ./lib -I ./kernel/ \
 
 echo -e "\033[32m========================================\033[0m"
 echo -e "\033[32m build init.o \033[0m"
-gcc -m32 -I ./lib/kernel/ -I ./lib -I ./kernel/ \
+gcc -m32 -I ./lib/kernel/ -I ./lib -I ./kernel/ -I ./device \
     -c -fno-builtin -fno-stack-protector \
     -o ./build/init.o ./kernel/init.c
+
+echo -e "\033[32m========================================\033[0m"
+echo -e "\033[32m build timer.o \033[0m"
+gcc -m32 -I ./device -I ./lib/kernel \
+    -c -fno-builtin -fno-stack-protector \
+    -o ./build/timer.o ./device/timer.c
+
 
 echo -e "\033[32m========================================\033[0m"
 echo -e "\033[32m build kernel.bin \033[0m"
 ld -m elf_i386 -Ttext 0xc0001500 -e main -o ./build/kernel.bin \
       ./build/main.o ./build/init.o ./build/interrupt.o ./build/print.o \
-      ./build/kernel_interrupt.o
+      ./build/kernel_interrupt.o ./build/timer.o
 
 echo -e "\033[32m========================================\033[0m"
 echo -e "\033[32m copy kernel.bin to hd60M.img \033[0m"
