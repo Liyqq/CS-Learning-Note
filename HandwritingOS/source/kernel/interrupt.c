@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-13 01:04:47
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-17 01:37:50
+* @Last Modified time: 2021-12-17 17:56:31
 */
 
 #include "stdint.h"
@@ -317,6 +317,18 @@ static struct gate_desc IDT[IDT_DESC_COUNT];
 /* 声明引用定义在kernel.S中的中断处理函数入口数组 */
 extern intr_handler intr_entry_table[IDT_DESC_COUNT];
 
+/* 用于保存异常的名字 */
+char* intr_name[IDT_DESC_COUNT];
+
+/**
+ * 定义中断处理程序数组，在kernel.s中定义的intrXX_entry仅是中断处理程序入口，
+ * 最终调用的是IDT_table中的C语言中断处理程序。
+ * 相当于intr_entry_table[i]调用IDT_table[i]中的中断处理程序
+ * 可见kernel/kernel_interrupt.S中的 call [IDT_table + %1*4]
+ */
+intr_handler IDT_table[IDT_DESC_COUNT];
+
+
 
 /**
  * pic_init - 初始化可编程中断控制器8259A
@@ -376,14 +388,86 @@ static void idt_desc_init(void)
 
 
 /**
+ * default_intr_handler - 默认的中断处理函数，用于异常出现时的处理
+ * @param vector_num : 中断向量号，访问为0~255
+ */
+static void default_intr_handler(uint8_t vector_num)
+{
+    /** 
+     * IRQ7(0x27)和IRQ15(0x2f)会产生伪中断，无法通过IMR屏蔽
+     * 此处直接不处理。
+     * 且0x2f是8259A从片上最后一个irq引脚，Intel保留。 
+     * 
+     */
+    if ((vector_num == 0x27) || (vector_num == 0x2f))
+    {
+        return;
+    }
+
+    put_str("interrupt vector number: 0x");
+    put_int(vector_num);
+    put_char('\n');
+}
+
+
+/**
+ * exception_init - 一般中断处理函数注册以及异常名称注册
+ */
+static void exception_init(void)
+{
+    int i;
+    for (i = 0; i < IDT_DESC_COUNT; ++i)
+    {
+        /**
+         * IDT数组中函数是进入中断后根据中断向量号调用的中断处理函数。
+         * 默认为default_intr_handler，之后由register_handler来
+         * 注册具体的中断处理函数
+         */
+        IDT_table[i] = default_intr_handler;
+        intr_name[i] = "Unknown"; // 中断名默认为Unknown
+    }
+
+    intr_name[0] = "#DE Divide Error";
+    intr_name[1] = "#DB Debug Exception";
+
+    intr_name[2] = "NMI Interrupt";
+    
+    intr_name[3] = "#BP Break Point";
+    intr_name[4] = "#OF Overflow Exception";
+    intr_name[5] = "#BR BOUND Range Exceeded Exception";
+    intr_name[6] = "#UD Invalid Opcode(UnDefined Opcode) Exception";
+    intr_name[7] = "#NM Device Not Available(No Math Corprocessor) Exception";
+    intr_name[8] = "#DF Double Fault Exception";
+    intr_name[9] = "#MF Corprocessor Segment Overrun(reserved)";
+    intr_name[10] = "#TS Invalid TSS Exception";
+    intr_name[11] = "#NP Segment Not Present";
+    intr_name[12] = "#SS Stack Fault Exception";
+    intr_name[13] = "#GP General Protection Exception";
+    intr_name[14] = "#PF Page-Fault Exception";
+    // intr_name[15] IRQ15是Intel保留项，未使用。
+    intr_name[16] = "#MF X87 FPU Floating-Point Error(Math Fault)";
+    intr_name[17] = "#AC Alignment Check Exception";
+    intr_name[18] = "#MC Machine-Check Exception";
+    intr_name[19] = "#XF SIMD Floating-Point Exception";
+    // intr_name[20~31] Intel保留项，未使用
+    // intr_name[32~255] 可屏蔽中断
+}
+
+
+
+
+
+
+/**
  * idt_init - 初始化中断描述符表
  */
 void idt_init(void) 
 {
     put_str("idt_init start\n");
     
-    idt_desc_init();
-    pic_init();
+    idt_desc_init();    // 初始化中断描述符表
+    exception_init();   // 异常名初始化并注册默认的中断处理函数
+    pic_init();         // 初始化8259A可编程中断控制器
 
     /* 加载IDT */
     uint64_t idt_operand = (sizeof(IDT) - 1) | ((uint64_t)(uint32_t)IDT << 16);

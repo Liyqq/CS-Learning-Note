@@ -1,6 +1,7 @@
 ;内核中断程序
 ;
 ;1.实现简单的内核中断处理程序，仅限时间中断
+;2.实现简单的内核中断处理程序，仅限时间中断，并在C语言中调用中断处理程序
 ;
 ;---------------------------------------------------------------------------
 ;
@@ -33,18 +34,33 @@ section .text
 intr%1_entry:
     %2                      ;中断若有错误码会压在EIP后面 
     
-    push intr_str
-    call put_str
-    add esp, 4
+    ;保存上下文
+    push ds
+    push es
+    push fs
+    push gs
+    pushad                  ;pushad指令压入32位寄存器，其入栈顺序是:
+                            ;EAX、ECX、EDX、EBX、ESP、EBP、ESI、EDI。
 
     ;如果是从片上进入的中断，除了往从片上发送EOI外，还要往主片上发送EOI。
     mov al, 0x20            ;中断结束命令EOI，OCW2第5位是EOI位，0x20=0010_0000b
     out 0xa0, al            ;向从片发送
     out 0x20, al            ;向主片发送
 
+    push %1                 ;不管IDT_table中对应的目标程序是否需要参数，
+                            ;都一律压入中断向量号。
+    call [IDT_table + %1*4] ;调用IDT_table中的C语言中断处理函数
     add esp, 4              ;回收栈空间，跳过中断号
 
-    iret
+    ;恢复上下文
+    popad
+    pop gs
+    pop fs
+    pop es
+    pop ds
+
+    add esp, 4              ; 跳过error_code或者占位的0
+    iretd
 
 section .data
     ;存储各个中断入口程序的地址。编译器会将同类型的section合并到一个大的segment中，
@@ -55,14 +71,15 @@ section .data
 %endmacro
 ;----------------------------  END  ------------------------------
 
-extern put_str
+
+;IDT_table是C语言中注册的中断处理程序数组
+extern IDT_table
 
 section .data
 
-intr_str db "interrupt occur!", 0xa, 0
-
 global intr_entry_table
 intr_entry_table:
+
 
 
 
