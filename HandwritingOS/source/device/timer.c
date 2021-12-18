@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-17 22:17:19
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-18 00:00:03
+* @Last Modified time: 2021-12-18 21:20:29
 */
 #include "timer.h"
 #include "io.h"
@@ -142,9 +142,9 @@
 
 /* 控制字读/写/锁存操作位，即Read/Write/Latch */
 #define RWL_LATCH       0
-#define RWL_READ        1
-#define RWL_WRITE       2
-#define RWL_READ_WRITE  3
+#define RWL_RW_LOW8     1
+#define RWL_RW_HIGH8    2
+#define RWL_RW          3
 
 
 /* 工作模式选择位，即Method或Mode */
@@ -175,7 +175,7 @@ static void frequency_set(uint8_t timer_port,
                           uint16_t timer_value)
 {
     /* 向控制字寄存器0x43中写入控制字 */
-    outb(PIT_CTRL_PORT,(uint8_t)((timer_no<<6) | (rwl<<4) | (timer_mode << 1)));
+    outb(PIT_CTRL_PORT, (uint8_t)((timer_no<<6) | (rwl<<4) | (timer_mode << 1)));
     
     /* 先写入timer_value低8位 */
     outb(timer_port, (uint8_t)(timer_value));
@@ -192,11 +192,11 @@ void timer_init(void)
 {
     put_str("timer_init start\n");
 
-    /* timer_value = 1193180 / IRQ0中断信号频率*/
+    /* timer_value = 1193180 / IRQ0中断信号频率 */
     uint16_t timer_value = INPUT_FREQUENCY / 1000;
 
     /* 设置8253的定时周期,也就是发中断的周期 */
-    frequency_set(TIMER0_PORT, TIMER0_NO, RWL_READ_WRITE, MODE_2, timer_value);
+    frequency_set(TIMER0_PORT, TIMER0_NO, RWL_RW, MODE_2, timer_value);
     
     put_str("timer_init done\n");
 }

@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-13 01:04:47
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-17 17:56:31
+* @Last Modified time: 2021-12-19 00:15:35
 */
 
 #include "stdint.h"
@@ -454,10 +454,6 @@ static void exception_init(void)
 }
 
 
-
-
-
-
 /**
  * idt_init - 初始化中断描述符表
  */
@@ -476,3 +472,73 @@ void idt_init(void)
     put_str("idt_init done\n");
 }
 
+
+
+#define EFLAGS_IF   0x00002000      // eflags寄存器中if位为1表示开中断
+
+/* 将eflags寄存器中内容读入指定内存变量中 */
+#define GET_EFLAGS(EFLAGS_VAR) asm volatile ("pushfl; popl %0":"=g"(EFLAGS_VAR))
+
+/**
+ * intr_get_status - 获取当前的中断状态
+ * @return  : 返回值为intr_status类型，表示当前中断状态，共有INTR_ON和INTR_OFF两种
+ */
+intr_status intr_get_status(void)
+{
+    uint32_t eflags = 0;
+    GET_EFLAGS(eflags);
+    return (EFLAGS_IF & eflags) ? INTR_ON : INTR_OFF;
+}
+
+
+/**
+ * intr_set_status - 将中断状态设置为status指定状态
+ * @param  status : intr_status类型，中断状态，共有INTR_ON和INTR_OFF两种
+ * @return        : 返回值为intr_status类型，表示当前函数设置的中断状态
+ */
+intr_status intr_set_status(intr_status status)
+{
+    return (status & INTR_ON) ? intr_enable() : intr_disable();
+}
+
+
+/**
+ * intr_enable - 开中断，并同时返回开中断前的状态
+ * @return  : 返回值为intr_status类型，表示开中断前的状态，共有INTR_ON和INTR_OFF两种
+ */
+intr_status intr_enable(void)
+{
+    intr_status old_status;
+    if (INTR_ON == intr_get_status())
+    {
+        old_status = INTR_ON;
+        return old_status;
+    }
+    else
+    {
+        old_status = INTR_OFF;
+        asm volatile ("sti"); // 开中断，sti指令将eflags的IF位置1
+        return old_status;
+    }
+}
+
+
+/**
+ * intr_disable - 关中断，并同时返回关中断前的状态
+ * @return  : 返回值为intr_status类型，表示关中断前的状态，共有INTR_ON和INTR_OFF两种
+ */
+intr_status intr_disable(void)
+{
+    intr_status old_status;
+    if (INTR_ON == intr_get_status())
+    {
+        old_status = INTR_ON;
+        asm volatile ("cli": : : "memory"); // 开中断，cti指令将eflags的IF位置1
+        return old_status;
+    }
+    else
+    {
+        old_status = INTR_OFF;
+        return old_status;
+    }
+}

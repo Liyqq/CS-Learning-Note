@@ -2,24 +2,28 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-17 23:26:18
+* @Last Modified time: 2021-12-18 23:18:04
 */
 
 #include "print.h"
 #include "init.h"
-
+#include "debug.h"
 
 
 /* 测试用例函数声明 */
 void print_test(void);
 void intr_test(void);
+void assert_test(void);
+
 
 // int _start(void) // Linux链接默认程序入口函数名
 int main(void)
 {
     // print_test();    
 
-    intr_test();
+    // intr_test();
+    
+    assert_test();
 
 
     while (1);
@@ -87,4 +91,15 @@ void intr_test(void)
     init_all();
 
     asm volatile ("sti"); // 演示中断处理，临时开中断
+}
+
+
+void assert_test(void)
+{
+    put_str("I am Kernel\n");
+    init_all();
+
+    ASSERT(1==2);
+
+    while (1);
 }
