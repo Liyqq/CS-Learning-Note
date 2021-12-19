@@ -2,19 +2,20 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-18 23:18:04
+* @Last Modified time: 2021-12-19 16:53:49
 */
 
 #include "print.h"
 #include "init.h"
 #include "debug.h"
+#include "string.h"
 
 
 /* 测试用例函数声明 */
 void print_test(void);
 void intr_test(void);
 void assert_test(void);
-
+void string_test(void);
 
 // int _start(void) // Linux链接默认程序入口函数名
 int main(void)
@@ -23,8 +24,9 @@ int main(void)
 
     // intr_test();
     
-    assert_test();
+    // assert_test();
 
+    string_test();
 
     while (1);
     return 0;
@@ -102,4 +104,100 @@ void assert_test(void)
     ASSERT(1==2);
 
     while (1);
+}
+
+
+void string_test(void)
+{
+    char* str_a = "string A string";
+    char* str_b = "string B string";
+    char* str_c = "string C string";
+    char* str_d = "string D";
+    put_str("str_a: ");
+    put_int((uint32_t)str_a);
+    put_char(':');
+    put_str(str_a);
+    put_str("\n");
+
+    put_str("str_b: ");
+    put_int((uint32_t)str_b);
+    put_char(':');
+    put_str(str_b);
+    put_str("\n");
+
+    put_str("str_c: ");
+    put_int((uint32_t)str_c);
+    put_char(':');
+    put_str(str_c);
+    put_str("\n");
+
+    put_str("str_d: ");
+    put_int((uint32_t)str_d);
+    put_char(':');
+    put_str(str_d);
+    put_str("\n");
+    put_str("\n");
+
+    put_str("--------------- TEST ---------------");
+    put_str("\n");
+
+    put_str("TEST strlen(str_a): ");
+    put_int(strlen(str_a));
+    put_str("\n");
+
+    put_str("TEST strcpy(str_d, str_a): ");
+    put_str("str_d=");
+    put_str(strcpy(str_d, str_a));
+    put_str("\n");
+
+    put_str("TEST strcmp(str_a, str_b): ");
+    put_int(strcmp(str_a, str_b));
+    put_str("\n");
+
+    put_str("TEST char* p_chr = strchr(str_a, 't'): \n");
+    char* p_chr = strchr(str_a, 't');    
+    put_str("    put_str(*p_chr):");
+    put_char(*p_chr);
+    put_str("\n");
+    put_str("    put_int((uint32_t)p_chr):");
+    put_int((uint32_t)p_chr);
+    put_str("\n");
+    put_str("    put_int((uint32_t)str_a):");
+    put_int((uint32_t)str_a);
+    put_str("\n");
+    put_str("    put_char((uint8_t)(*(str_a + 1))):");
+    put_char((uint8_t)(*(str_a + 1)));
+    put_str("\n");
+
+    put_str("TEST char* p_chr = strrchr(str_a, 't'): \n");
+    char* p_rchr = strrchr(str_a, 't');    
+    put_str("    put_str(*p_chr):");
+    put_char(*p_rchr);
+    put_str("\n");
+    put_str("    put_int((uint32_t)p_rchr):");
+    put_int((uint32_t)p_rchr);
+    put_str("\n");
+    put_str("    put_int((uint32_t)str_a):");
+    put_int((uint32_t)str_a);
+    put_str("\n");
+    put_str("    put_char((uint8_t)(*(str_a + 10))):");
+    put_char((uint8_t)(*(str_a + 10)));
+    put_str("\n");
+
+
+    put_str("TEST strcat(str_d, str_a): ");
+    put_str("str_d=");
+    put_str(strcpy(str_d, str_a));
+    put_str("\n");
+
+    put_str("TEST strchrs(str_d, 's'): \n");
+    put_str("     str_d=");
+    put_str(str_d);
+    put_str("\n");
+    put_str("     put_int(strchrs(str_d, 's')):");
+    put_int(strchrs(str_d, 's'));
+    put_str("\n");
+    put_str("\n");
+
+    put_str("--------------- TEST ---------------");
 }

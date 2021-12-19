@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-17 22:17:19
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-18 21:20:29
+* @Last Modified time: 2021-12-19 14:28:50
 */
 #include "timer.h"
 #include "io.h"
@@ -160,7 +160,7 @@
 #define BIN     0
 
 /**
- * frequency_set - 是把操作的计时器timer_no、读写锁属性rwl、计数器工作模式counter_mode
+ * frequency_set - 是把操作的计时器timer_no、读写锁属性rwl、计数器工作模式timer_mode
  *                 写入模式控制寄存器并赋予计时器的计数初值为counter_value。
  * @param timer_port  : 计时器端口号，用于指定初值timer_value的目的端口号
  * @param timer_no    : 用于在控制字中指定所使用的计时器号码，对应控制字中SC1~SC2位
