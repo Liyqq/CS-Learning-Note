@@ -1,5 +1,5 @@
-#ifndef __LIB_IO_H
-#define __LIB_IO_H
+#ifndef __LIB_KERNEL_IO_H
+#define __LIB_KERNEL_IO_H
 #include "stdint.h"
 
 /**
@@ -83,4 +83,4 @@ static inline void insw(uint16_t port, void* addr, uint32_t word_count)
 
 
 
-#endif // __LIB_IO_H
+#endif // __LIB_KERNEL_IO_H
