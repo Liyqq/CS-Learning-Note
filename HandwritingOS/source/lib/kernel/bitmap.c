@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-19 18:59:12
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-19 21:18:13
+* @Last Modified time: 2021-12-26 16:39:34
 */
 
 #include "stdint.h"
@@ -66,7 +66,8 @@ int bitmap_scan(bitmap* btmp, uint32_t count)
 
     /* 若在该位图中找到某字节存在空闲位，逐位比较找出空闲位 */
     int free_bit_in_byte = 0;
-    while ((uint8_t)(BITMAP_MASK<<free_bit_in_byte) & btmp->bits[free_bit_in_byte])
+    while ((uint8_t)(BITMAP_MASK << free_bit_in_byte) 
+           & btmp->bits[free_byte_index])
     {
         ++free_bit_in_byte;
     }
@@ -78,12 +79,12 @@ int bitmap_scan(bitmap* btmp, uint32_t count)
     }
     
 
-    uint32_t bit_left = btmp->bitmap_bytes_len*8 - bit_start_index; // 记录空闲位数量
+    uint32_t bit_remain = btmp->bitmap_bytes_len*8 - bit_start_index; 
     uint32_t next_bit_index = bit_start_index + 1;
     uint32_t cnt = 1; // 记录找到空闲位的个数
 
     bit_start_index = -1;
-    while (bit_left-- > 0)
+    while (bit_remain > 0)
     {
         /* 下一位是空闲的则cnt加一，否则将cnt清空，重新寻找连续count个位 */
         if (!(bitmap_scan_test(btmp, next_bit_index)))
@@ -102,6 +103,7 @@ int bitmap_scan(bitmap* btmp, uint32_t count)
             break;
         }
         ++next_bit_index;
+        --bit_remain;
     }
 
     return bit_start_index;

@@ -2,13 +2,14 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-26 15:52:50
+* @Last Modified time: 2021-12-26 17:04:23
 */
 
 #include "print.h"
 #include "init.h"
 #include "debug.h"
 #include "string.h"
+#include "bitmap.h"
 
 
 /* 测试用例函数声明 */
@@ -16,6 +17,7 @@ void print_test(void);
 void intr_test(void);
 void assert_test(void);
 void string_test(void);
+void bitmap_test(void);
 
 
 // int _start(void) // Linux链接默认程序入口函数名
@@ -28,7 +30,9 @@ int main(void)
     
     // assert_test();
 
-    string_test();
+    // string_test();
+
+    bitmap_test();
 
     while (1);
     return 0;
@@ -204,4 +208,23 @@ void string_test(void)
     put_str("\n");
 
     put_str("--------------- TEST ---------------");
+}
+
+
+void bitmap_test(void)
+{
+    uint16_t bits_value = 0x0f;
+    bitmap btmp;
+    btmp.bitmap_bytes_len = 1;
+    btmp.bits = &bits_value;
+    put_int(*btmp.bits);
+    put_str("\n");
+
+    bitmap_init(&btmp);
+    put_int(*btmp.bits);
+    put_str("\n");
+
+    bitmap_set(&btmp, 4, 1);
+    put_int(*btmp.bits);
+    put_str("\n");
 }
