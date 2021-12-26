@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-19 16:53:49
+* @Last Modified time: 2021-12-26 15:52:50
 */
 
 #include "print.h"
@@ -17,9 +17,11 @@ void intr_test(void);
 void assert_test(void);
 void string_test(void);
 
+
 // int _start(void) // Linux链接默认程序入口函数名
 int main(void)
-{
+{   
+
     // print_test();    
 
     // intr_test();
@@ -112,6 +114,7 @@ void string_test(void)
     char* str_a = "string A string";
     char* str_b = "string B string";
     char* str_c = "string C string";
+    char* _tmp_ = "               "; // 由于字符串内存连续，此字符串用于占位
     char* str_d = "string D";
     put_str("str_a: ");
     put_int((uint32_t)str_a);
@@ -185,9 +188,10 @@ void string_test(void)
     put_str("\n");
 
 
-    put_str("TEST strcat(str_d, str_a): ");
-    put_str("str_d=");
-    put_str(strcpy(str_d, str_a));
+    put_str("TEST strcat(str_c, \" Cat (^-^)~\"): ");
+    strcat(str_c, " Cat (^-^)~");
+    put_str("str_c=");
+    put_str(str_c);
     put_str("\n");
 
     put_str("TEST strchrs(str_d, 's'): \n");

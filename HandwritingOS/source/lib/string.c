@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-19 14:30:53
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-19 16:17:18
+* @Last Modified time: 2021-12-26 14:57:21
 */
 
 #include "global.h"
@@ -20,7 +20,7 @@ void memset(void* dst_, uint8_t value, uint32_t size)
 {
     ASSERT(dst_ != NULL);
     
-    uint8_t* dst = (uint8_t)dst_;
+    uint8_t* dst = (uint8_t*)dst_;
     while (size-- > 0)
     {
         *dst++ = value;
@@ -194,7 +194,7 @@ char* strcat(char* dst_, const char* src_)
     while (*str++);
     --str;
 
-    while((*str++ = *src_++));
+    while ((*str++ = *src_++));
     return dst_;
 }
 
