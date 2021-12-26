@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-26 17:04:23
+* @Last Modified time: 2021-12-26 17:08:19
 */
 
 #include "print.h"
@@ -10,6 +10,7 @@
 #include "debug.h"
 #include "string.h"
 #include "bitmap.h"
+#include "memory.h"
 
 
 /* 测试用例函数声明 */
@@ -18,6 +19,7 @@ void intr_test(void);
 void assert_test(void);
 void string_test(void);
 void bitmap_test(void);
+void memory_test(void);
 
 
 // int _start(void) // Linux链接默认程序入口函数名
@@ -32,7 +34,9 @@ int main(void)
 
     // string_test();
 
-    bitmap_test();
+    // bitmap_test();
+
+    memory_test();
 
     while (1);
     return 0;
@@ -227,4 +231,21 @@ void bitmap_test(void)
     bitmap_set(&btmp, 4, 1);
     put_int(*btmp.bits);
     put_str("\n");
+}
+
+
+
+
+void memory_test(void)
+{
+    put_str("I am kernel\n");
+    init_all();
+
+    void* addr = get_kernel_pages(3);
+
+    put_str("\n get_kernel_pages(3) start vaddr=");
+    put_int((uint32_t)addr);
+    put_str("\n");
+
+    while(1);
 }

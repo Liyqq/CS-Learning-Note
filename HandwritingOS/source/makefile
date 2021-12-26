@@ -11,15 +11,17 @@ LDFLAGS = -m elf_i386 -Ttext $(ENTRY_POINT) -e main -Map $(BUILD_DIR)/kernel.map
 OBJS = $(BUILD_DIR)/main.o $(BUILD_DIR)/init.o $(BUILD_DIR)/interrupt.o \
 	   $(BUILD_DIR)/timer.o $(BUILD_DIR)/kernel_interrupt.o \
 	   $(BUILD_DIR)/print.o $(BUILD_DIR)/debug.o $(BUILD_DIR)/string.o \
-	   $(BUILD_DIR)/bitmap.o
+	   $(BUILD_DIR)/bitmap.o $(BUILD_DIR)/memory.o
 
 ########## C code compile ##########
 $(BUILD_DIR)/main.o: ./kernel/main.c ./lib/kernel/print.h \
-	./lib/stdint.h ./kernel/init.h
+	./lib/stdint.h ./kernel/init.h ./kernel/memory.h \
+	./lib/string.h ./lib/kernel/bitmap.h
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/init.o: ./kernel/init.c ./kernel/init.h \
-	./lib/kernel/print.h ./kernel/interrupt.h ./lib/stdint.h ./device/timer.h
+	./lib/kernel/print.h ./kernel/interrupt.h ./lib/stdint.h \
+	./device/timer.h ./kernel/memory.h
 	$(CC) $(CFLAGS) $< -o $@
 
 $(BUILD_DIR)/interrupt.o: ./kernel/interrupt.c ./kernel/interrupt.h \
@@ -42,6 +44,10 @@ $(BUILD_DIR)/bitmap.o: ./lib/kernel/bitmap.c ./lib/kernel/bitmap.h \
 	./lib/stdint.h ./lib/string.h ./kernel/debug.h ./lib/kernel/print.h
 	$(CC) $(CFLAGS) $< -o $@
 
+$(BUILD_DIR)/memory.o: ./kernel/memory.c ./kernel/memory.h \
+	./lib/stdint.h ./lib/kernel/print.h ./lib/kernel/bitmap.h \
+	./lib/string.h ./kernel/debug.h
+	$(CC) $(CFLAGS) $< -o $@
 
 ########## Assembly code compile ##########
 $(BUILD_DIR)/kernel_interrupt.o: ./kernel/kernel_interrupt.S
