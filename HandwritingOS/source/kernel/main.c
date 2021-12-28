@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-26 17:08:19
+* @Last Modified time: 2021-12-28 01:07:06
 */
 
 #include "print.h"
@@ -11,6 +11,9 @@
 #include "string.h"
 #include "bitmap.h"
 #include "memory.h"
+#include "thread.h"
+
+
 
 
 /* 测试用例函数声明 */
@@ -20,6 +23,9 @@ void assert_test(void);
 void string_test(void);
 void bitmap_test(void);
 void memory_test(void);
+void thread_test(void);
+
+
 
 
 // int _start(void) // Linux链接默认程序入口函数名
@@ -36,7 +42,9 @@ int main(void)
 
     // bitmap_test();
 
-    memory_test();
+    // memory_test();
+    
+    thread_test();
 
     while (1);
     return 0;
@@ -94,7 +102,6 @@ void print_test(void)
 
     put_int(0x00e015af);
 }
-
 
 
 void intr_test(void)
@@ -234,8 +241,6 @@ void bitmap_test(void)
 }
 
 
-
-
 void memory_test(void)
 {
     put_str("I am kernel\n");
@@ -248,4 +253,27 @@ void memory_test(void)
     put_str("\n");
 
     while(1);
+}
+
+
+void kthread_a(void* args); // thread_test中thread中运行的函数
+
+void thread_test(void)
+{
+    put_str("I am in kernel\n");
+
+    init_all();
+
+    thread_create("kthread_a", 31, kthread_a, "argA ");
+
+    while(1);
+}
+
+void kthread_a(void* args)
+{
+    char* para = args;
+    while (1)
+    {
+        put_str(para);
+    }    
 }
