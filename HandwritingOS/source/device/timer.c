@@ -2,11 +2,14 @@
 * @Author: Yooj
 * @Date:   2021-12-17 22:17:19
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-19 14:28:50
+* @Last Modified time: 2021-12-31 21:23:36
 */
 #include "timer.h"
 #include "io.h"
+#include "thread.h"
+#include "debug.h"
 #include "print.h"
+#include "interrupt.h"
 
 
 /**
@@ -159,6 +162,10 @@
 #define BCD     1
 #define BIN     0
 
+
+uint32_t ticks; // 记录内核自中断开启以来总共的时钟嘀嗒数
+
+
 /**
  * frequency_set - 是把操作的计时器timer_no、读写锁属性rwl、计数器工作模式timer_mode
  *                 写入模式控制寄存器并赋予计时器的计数初值为counter_value。
@@ -186,6 +193,30 @@ static void frequency_set(uint8_t timer_port,
 
 
 /**
+ * intr_timer_handler - 时钟中断处理函数
+ */
+static void intr_timer_handler(void)
+{
+    task_struct* current_thread = running_thread();
+
+    ASSERT(current_thread->stack_magic == THREAD_STACK_MAGIC); // 检查栈是否溢出
+
+    current_thread->elapsed_ticks++; // 记录此线程占用的CPU时钟嘀嗒数
+    ++ticks; // 内核态和用户态总共运行的时钟嘀哒数
+
+    if (current_thread->ticks == 0) // 线程时间片用完，开始调度新的线程上CPU运行
+    {
+        schedule();
+    }
+    else // 当前进程继续运行，时钟嘀嗒数-1
+    {
+        current_thread->ticks--;
+    }
+}   
+
+
+
+/**
  * timer_init - 初始化PIT8253
  */
 void timer_init(void)
@@ -197,6 +228,9 @@ void timer_init(void)
 
     /* 设置8253的定时周期,也就是发中断的周期 */
     frequency_set(TIMER0_PORT, TIMER0_NO, RWL_RW, MODE_2, timer_value);
+
+    /* 在IDT_table中注册时钟中断处理函数 */
+    register_handler(0x20, intr_timer_handler); 
     
     put_str("timer_init done\n");
 }

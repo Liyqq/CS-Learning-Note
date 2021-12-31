@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-19 14:30:53
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-26 14:57:21
+* @Last Modified time: 2021-12-31 21:41:38
 */
 
 #include "global.h"
@@ -38,8 +38,8 @@ void memcpy(void* dst_, const void* src_, uint32_t size)
 {
     ASSERT((dst_ != NULL) && (src_ != NULL));
     
-    uint8_t* dst = (uint8_t)dst_;
-    const uint8_t* src = (uint8_t)src_;
+    uint8_t* dst = (uint8_t*)dst_;
+    const uint8_t* src = (uint8_t*)src_;
     while (size-- > 0)
     {
         *dst++ = *src++;

@@ -2,6 +2,7 @@
 #define __THREAD_THREAD_H
 
 #include "stdint.h"
+#include "list.h"
 
 
 /* 自定义线程通用函数类型thread_func，在线程实现函数中作为形参类型 */
@@ -39,6 +40,7 @@ typedef struct intr_stack
     uint32_t ebx;
     uint32_t edx;
     uint32_t ecx;
+    uint32_t eax;
     uint32_t gs;
     uint32_t fs;
     uint32_t es;
@@ -53,6 +55,8 @@ typedef struct intr_stack
     uint32_t ss;
 } intr_stack;
 
+
+#define THREAD_STACK_MAGIC 0x77777777
 
 /**
  * 线程栈thread_stack
@@ -97,11 +101,16 @@ typedef struct thread_stack
 /* 进程或线程的PCB(Progress Control Block) */
 typedef struct task_struct
 {
-    uint32_t* self_kstack;      // 各个内核线程都拥有自己的内核栈
-    enum task_status status;   // 线程状态
-    uint8_t priority;           // 线程优先级
-    char name[16];              // 线程名
-    uint32_t stack_magic;       // 用此魔术做为栈的边界标记，用于检测栈的溢出
+    uint32_t* self_kstack;       // 各个内核线程都拥有自己的内核栈
+    enum task_status status;     // 线程状态
+    char name[16];               // 线程名
+    uint8_t priority;            // 线程优先级
+    uint8_t ticks;               // 线程获取到的CPU时间片长度(以时钟周期计数)
+    uint32_t elapsed_ticks;      // 此线程到目前为止总共运行的时钟周期数
+    list_elem general_queue_tag; // 标记线程为一般线程队列中的结点
+    list_elem all_queue_tag;     // 标记线程为所有线程队列中的结点
+    uint32_t* page_vaddr;        // 进程自身页表的虚拟地址，线程此值为NULL
+    uint32_t stack_magic;        // 用此魔数做为栈的边界标记，用于检测栈的溢出
 } task_struct;
 
 
@@ -118,5 +127,12 @@ task_struct*
 thread_create(char* name, int priority, thread_func function, void* func_args);
 
 
+task_struct* running_thread(void);
+
+
+void schedule(void);
+
+
+void thread_init(void);
 
 #endif // __THREAD_THREAD_H

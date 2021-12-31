@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-13 01:04:47
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-19 00:15:35
+* @Last Modified time: 2021-12-31 23:24:22
 */
 
 #include "stdint.h"
@@ -404,9 +404,31 @@ static void default_intr_handler(uint8_t vector_num)
         return;
     }
 
-    put_str("interrupt vector number: 0x");
-    put_int(vector_num);
-    put_char('\n');
+    /* 清空4行内容 */
+    set_cursor(0);
+    int cursor_pos = 0;
+    while (cursor_pos < 320)
+    {
+        put_char(' ');
+        ++cursor_pos;
+    }
+
+    set_cursor(0);
+    put_str("!!!!!!!!!! Exception message being !!!!!!!!!!\n");
+    set_cursor(88);
+    put_str(intr_name[vector_num]);
+
+    /* 发生缺页异常，打印缺失的地址 */
+    if (vector_num == 14)
+    {
+        int page_fault_vaddr = 0;
+        asm ("movl %%cr2, %0" : "=r"(page_fault_vaddr));
+        put_str("\nPage fault address is: ");
+        put_int(page_fault_vaddr);
+    }
+
+    put_str("\n!!!!!!!!!! Exception message end !!!!!!!!!!\n");
+    while(1); // 让程序悬停此处
 }
 
 
@@ -474,7 +496,7 @@ void idt_init(void)
 
 
 
-#define EFLAGS_IF   0x00002000      // eflags寄存器中if位为1表示开中断
+#define EFLAGS_IF   0x00000200      // eflags寄存器中if位为1表示开中断
 
 /* 将eflags寄存器中内容读入指定内存变量中 */
 #define GET_EFLAGS(EFLAGS_VAR) asm volatile ("pushfl; popl %0":"=g"(EFLAGS_VAR))
@@ -533,7 +555,7 @@ intr_status intr_disable(void)
     if (INTR_ON == intr_get_status())
     {
         old_status = INTR_ON;
-        asm volatile ("cli": : : "memory"); // 开中断，cti指令将eflags的IF位置1
+        asm volatile ("cli": : : "memory"); // 关中断，cti指令将eflags的IF位置0
         return old_status;
     }
     else
@@ -541,4 +563,15 @@ intr_status intr_disable(void)
         old_status = INTR_OFF;
         return old_status;
     }
+}
+
+
+/**
+ * register_handler - 在中断处理表中对应vector_num处注册中断处理程序function
+ * @param vector_num : 中断向量号，访问为0~255
+ * @param function   : 中断向量号对应的中断处理程序
+ */
+void register_handler(uint8_t vector_num, intr_handler function)
+{
+    IDT_table[vector_num] = function;
 }

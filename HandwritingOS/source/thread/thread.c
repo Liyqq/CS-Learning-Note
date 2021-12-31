@@ -2,13 +2,17 @@
 * @Author: Yooj
 * @Date:   2021-12-27 01:35:38
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-28 18:32:30
+* @Last Modified time: 2021-12-31 23:49:19
 */
 
 #include "stdint.h"
 #include "string.h"
 #include "global.h"
+#include "debug.h"
+#include "interrupt.h"
+#include "print.h"
 #include "memory.h"
+#include "list.h"
 #include "thread.h"
 
 
@@ -16,8 +20,26 @@
 #define PAGE_SIZE 4096
 
 
+/* 主线程（进程）的PCB */
+task_struct* main_thread;
+
+
+/* 管理线程的队列 */
+list ready_thread_queue;      // 就绪队列
+list all_thread_queue;        // 所有线程队列
+static list_elem* thread_tag; // 用于保存队列中的线程节点
+
+
+/* 完成线程的切换 */
+extern void switch_to(task_struct* current, task_struct* next);
+
+
+
 /* 由kernel_thread函数去执行function(func_arg) */
 static void kernel_thread(thread_func* function, void* func_args);
+
+/* 调用此函数创建主线程 */
+static void make_main_thread(void);
 
 
 
@@ -29,9 +51,21 @@ static void kernel_thread(thread_func* function, void* func_args);
  */
 static void kernel_thread(thread_func* function, void* func_args)
 {
+    /** 
+     * 执行function函数前应该开中断，
+     * 避免后面的时钟中断被屏蔽，而无法调度其它的线程。
+     */
+    intr_enable(); 
     function(func_args);
 }
 
+
+task_struct* running_thread(void)
+{
+    uint32_t esp;
+    asm ("mov %%esp, %0" : "=g"(esp));
+    return (task_struct*)(esp & 0xfffff000);
+}
 
 
 /**
@@ -44,11 +78,23 @@ void init_thread_pcb(task_struct* pthread, char* name, int priority)
 {
     memset(pthread, 0, sizeof(*pthread)); // 清空PCB所在物理内存页
     strcpy(pthread->name, name);
-    pthread->status = TASK_RUNNING; // 基础版本：此处直接指定线程为运行态
-    pthread->priority = priority;
+
+    if (pthread == main_thread)
+    {
+        pthread->status = TASK_RUNNING; // main函数则直接指定线程为运行态
+    }
+    else
+    {
+        pthread->status = TASK_READY; // 除main函数外，其余新创建的线程指定为就绪态   
+    }
+
     /* self_kstack是线程自己在内核态使用栈的栈顶地址 */
     pthread->self_kstack = (uint32_t*)((uint32_t)pthread + PAGE_SIZE);
-    pthread->stack_magic = 0x77777777; // 自定义的栈边界魔数
+    pthread->priority = priority;
+    pthread->ticks = priority;
+    pthread->elapsed_ticks = 0;
+    pthread->page_vaddr = NULL;
+    pthread->stack_magic = THREAD_STACK_MAGIC; // 自定义的栈边界魔数
 }
 
 
@@ -103,27 +149,72 @@ thread_create(char* name, int priority, thread_func function, void* func_args)
     init_thread_pcb(pthread, name, priority);
     init_thread_stack(pthread, function, func_args);
 
-    /**
-     * 指定pthread->self_kstack的值为栈顶，依次弹出保存的寄存器，
-     * 然后使用ret调用（ret会从栈顶弹入返回地址到EIP中，从而改变了
-     * 执行流，若在栈顶指定一个函数的开始执行地址便可实现使用ret调
-     * 用函数），此处栈顶值是由init_thread_stack函数在
-     * self_kstack中指定的函数kernel_thread地址（即初始化
-     * thread_stack中的
-     * void (*eip)(thread_func* func, void* func_args);处
-     * 定义的函数指针eip。
-     *
-     * pop操作是为了弹出栈中保存的值
-     */
-    asm volatile ("movl %0, %%esp;              \
-                  pop %%ebp;                    \
-                  pop %%ebx;                    \
-                  pop %%edi;                    \
-                  pop %%esi;                    \
-                  ret" // 使用ret调用函数function
-                  : 
-                  : "g"(pthread->self_kstack) // pthread->self_kstack为栈顶
-                  : "memory");
+    /* 将线程加入就绪队列 */
+    ASSERT(!list_has_elem(&ready_thread_queue, &pthread->general_queue_tag));
+    list_append(&ready_thread_queue, &pthread->general_queue_tag);
+
+    /* 将线程加入所有线程队列 */
+    ASSERT(!list_has_elem(&all_thread_queue, &pthread->all_queue_tag));
+    list_append(&all_thread_queue, &pthread->all_queue_tag);
 
     return pthread;   
+}
+
+
+/**
+ * make_main_thread - 创建主线程
+ */
+static void make_main_thread(void)
+{
+    main_thread = running_thread();
+    init_thread_pcb(main_thread, "main", 31);
+
+    ASSERT(!list_has_elem(&all_thread_queue, &main_thread->all_queue_tag));
+    list_append(&all_thread_queue, &main_thread->all_queue_tag);
+}
+
+
+/**
+ * schedule - 完成队列中线程的调度
+ */
+void schedule(void)
+{
+    ASSERT(intr_get_status() == INTR_OFF);
+
+    task_struct* current = running_thread();
+    /* 若当前线程仅因为时间片用完，则将其放入就绪队列等待下一次调度 */
+    if (current->status == TASK_RUNNING)
+    {
+        ASSERT(!list_has_elem(&ready_thread_queue, &current->general_queue_tag));
+        list_append(&ready_thread_queue, &current->general_queue_tag);
+        current->ticks = current->priority; // 重设当前线程的时间片，待下次调度使用
+        current->status = TASK_READY;
+    }
+    else
+    {
+        // TODO: 将线程加入事件触发队列
+    }
+
+    ASSERT(!list_empty(&ready_thread_queue)); // 保证有可调动的线程存在
+
+    thread_tag = NULL;
+    thread_tag = list_pop_left(&ready_thread_queue);
+    task_struct* next = elem2entry(task_struct, general_queue_tag, thread_tag);
+    next->status = TASK_RUNNING;
+    switch_to(current, next);
+}
+
+
+/**
+ * thread_init - 初始化内存线程环境
+ */
+void thread_init(void)
+{
+    put_str("thread_init start\n");
+
+    list_init(&ready_thread_queue);
+    list_init(&all_thread_queue);
+    make_main_thread(); // 将当前main函数创建为主线程
+
+    put_str("thread_init done\n");
 }

@@ -23,6 +23,6 @@ intr_status intr_get_status(void);                // 获取中断状态
 intr_status intr_set_status(intr_status status);  // 设置中断状态
 intr_status intr_enable(void);                    // 开中断
 intr_status intr_disable(void);                   // 关中断
-
+void register_handler(uint8_t vector_num, intr_handler function);
 
 #endif // __KERNEL_INTERRUPT_H

@@ -20,6 +20,7 @@ section .text
 global put_char
 global put_str
 global put_int
+global set_cursor
 
 
 ;把每一个寄存器分组视为一个寄存器数组，提供一个寄存器用于指定数组下标，
@@ -413,6 +414,42 @@ put_int:
 ;;;;;;;;;; 从左往右逐个打印转换后16进制数结束 ;;;;;;;;;;
 
 .put_int_done:
+    popad
+    ret
+;----------------------------  END  ------------------------------
+
+
+
+
+;---------------------------- START ------------------------------
+;功能：设置光标的坐标
+;输入：(cursor_pos)
+;   cursor_pos：光标的坐标
+;输出：
+;   无
+;
+set_cursor:
+    pushad
+    mov bx, [esp + 4*9]
+
+    ;设置高8位
+    mov dx, 0x03d4              ;索引寄存器
+    mov al, 0x0e                ;光标高8位寄存器
+    out dx, al
+
+    mov dx, 0x03d5              ;数据寄存器
+    mov al, bh                  ;写入高8位
+    out dx, al                  
+
+    ;设置低8位
+    mov dx, 0x03d4              ;索引寄存器
+    mov al, 0x0f                ;光标低8位寄存器
+    out dx, al
+
+    mov dx, 0x03d5              ;数据寄存器
+    mov al, bl                  ;写入低8位
+    out dx, al
+
     popad
     ret
 ;----------------------------  END  ------------------------------

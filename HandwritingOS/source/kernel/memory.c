@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-19 21:25:07
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-26 17:57:00
+* @Last Modified time: 2021-12-31 21:34:20
 */
 
 #include "stdint.h"
@@ -425,7 +425,7 @@ static void mapping_vaddr_to_pmem(void* _vaddr, void* _page_paddr)
          * 是基于PDE中指定页表的物理地址为起始进行偏移寻址的，
          * 将PTE把低12位置0，即PDE对应页表的物理页的起始地址
          */
-        memset((void*)((int)pte & 0xffffff000), 0, PAGE_SIZE);
+        memset((void*)((int)pte & 0xfffff000), 0, PAGE_SIZE);
         /* 页目录项不存在，页表项也应保证不存在，因此无需再判断页表项的存在与否 */
         *pte = (page_table_paddr | PG_US_U | PG_RW_W | PG_P_1);
     }

@@ -2,7 +2,7 @@
 * @Author: Yooj
 * @Date:   2021-12-08 01:25:50
 * @Last Modified by:   Yooj
-* @Last Modified time: 2021-12-28 01:07:06
+* @Last Modified time: 2021-12-31 23:49:36
 */
 
 #include "print.h"
@@ -257,6 +257,7 @@ void memory_test(void)
 
 
 void kthread_a(void* args); // thread_test中thread中运行的函数
+void kthread_b(void* args); // thread_test中thread中运行的函数
 
 void thread_test(void)
 {
@@ -265,11 +266,26 @@ void thread_test(void)
     init_all();
 
     thread_create("kthread_a", 31, kthread_a, "argA ");
+    thread_create("kthread_b", 8, kthread_b, "argB ");
 
-    while(1);
+    intr_enable();
+
+    while(1)
+    {
+        put_str("Main ");
+    }
 }
 
 void kthread_a(void* args)
+{
+    char* para = args;
+    while (1)
+    {
+        put_str(para);
+    }    
+}
+
+void kthread_b(void* args)
 {
     char* para = args;
     while (1)
